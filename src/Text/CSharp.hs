@@ -10,4 +10,4 @@ csharp = QuasiQuoter { quoteExp = csharpFromString }
 
 -- | C# code gen
 csharpFromString :: String -> Q Exp
-csharpFromString s = [|"Hello, World"|]
+csharpFromString s = litE (stringL s)
