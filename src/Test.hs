@@ -18,7 +18,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 #region type aliases
-$foreach (name, type) <- types
+$forall (name, type) <- types
   using #{name} = #{type}
 #endregion
 
@@ -49,13 +49,13 @@ namespace ServantClientBook
         #endregion
 
         #region APIs
-        %:foreach ep <- endpoints
-          public async Task<%{retType ep}> %{methodName ep}Async(%{paramDecl ep})
+        #:forall ep <- endpoints
+          public async Task<#{retType ep}> #{methodName ep}Async(#{paramDecl ep})
           {
               var client = new ServantClient();
               var queryparams = new List<string> {
-                  $:foreach qp <- queryparams ep
-                    _%{qp}.HasValue ? $"_%{qp}={_%{qp}.Value}" : null,
+                  $:forall qp <- queryparams ep
+                    _#{qp}.HasValue ? $"_#{qp}={_#{qp}.Value}" : null,
               }.Where(e => !string.IsNullOrEmpty(e));
               var qp= queryparams.Count() > 0 ? $"?{string.Join("&", queryparams)}" : "";
 #if DEBUG
@@ -63,12 +63,12 @@ namespace ServantClientBook
 #else
                 var jsonObj = JsonConvert.SerializeObject(_obj);
 #endif
-              %:if requestBodyExists ep
-                var res = await client.%{methodType ep}Async($"{server}%{uri ep}{qp}", new StringContent(jsonObj, Encoding.UTF8, "application/json"));
-              %:else
-                var res = await client.%{methodType ep}Async($"{server}%{uri ep}{qp}");
+              #:if requestBodyExists ep
+                var res = await client.#{methodType ep}Async($"{server}#{uri ep}{qp}", new StringContent(jsonObj, Encoding.UTF8, "application/json"));
+              #:else
+                var res = await client.#{methodType ep}Async($"{server}#{uri ep}{qp}");
               Debug.WriteLine($">>> {res.RequestMessage}");
-              %:if requestBodyExists ep
+              #:if requestBodyExists ep
                 Debug.WriteLine($"-----");
                 Debug.WriteLine(jsonObj);
                 Debug.WriteLine($"-----");
@@ -77,9 +77,9 @@ namespace ServantClientBook
               Debug.WriteLine($"<<< {content}");
               return JsonConvert.DeserializeObject<${retType ep}>(content);
          }
-          public %{x.retType} %{x.methodName}(%{x.paramDecl})
+          public #{retType ep} #{methodName ep}(#{paramDecl ep})
           {
-              Task<%{x.retType}> t = %{x.methodName}Async(%{x.paramArg});
+              Task<#{retType ep}> t = #{methodName ep}Async(#{paramArg ep});
               return t.GetAwaiter().GetResult();
           }
         #endregion
