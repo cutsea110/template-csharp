@@ -14,6 +14,7 @@ csharp = QuasiQuoter { quoteExp = csharpFromString }
 csharpFromString :: String -> Q Exp
 csharpFromString = litE . stringL
 
+type Indent = Int
 
 data Content = Raw String
              | Expr [E]
@@ -41,17 +42,14 @@ spaceTabs = many (oneOf " \t")
 
 doc = line `endBy` eol
 
-line = (,) <$> indent <*> line'
+line = (,) <$> indent <*> contents
 
-line' = many (noneOf "\n\r")
+contents = Raw <$> many (noneOf "\n\r")
 
 indent :: Parser Int
 indent = fmap sum $
          many ((char ' ' >> pure 1) <|>
                (char '\t' >> fail "Tabs are not allowed in indentation"))
-  
-
-
 
 {--
 parser :: Parser [Content]
