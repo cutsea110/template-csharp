@@ -16,7 +16,7 @@ csharpFromString = litE . stringL
 
 
 data Content = Raw String
-             | Expr [String]
+             | Expr [E]
                deriving Show
 
 data E = S String
@@ -30,9 +30,10 @@ parser = many (try embed <|> raw)
 embed :: Parser Content
 embed = Expr <$> (string "#{" *> expr <* string "}")
     where
-      expr :: Parser [String]
+      expr :: Parser [E]
       expr = many1 term
-      term = spaces *> many1 (noneOf " \t}")
+      term :: Parser E
+      term = spaces *> (S <$> str <|> I <$> integer <|> V <$> var)
 
 integer :: Parser Integer
 integer = read <$> many1 digit
@@ -42,6 +43,8 @@ str = char '"' *> many quotedChar <* char '"'
 quotedChar :: Parser Char
 quotedChar = noneOf "\\\"" <|> try (string "\\\"" >> return '"')
 
+var :: Parser String
+var = many1 (noneOf " \t}")
+
 raw :: Parser Content
 raw = Raw <$> many1 (noneOf "#")
-
