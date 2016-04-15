@@ -16,7 +16,7 @@ csharpFromString = litE . stringL
 
 
 data Content = Raw String
-             | Expr String
+             | Expr [String]
                deriving Show
 
 parser :: Parser [Content]
@@ -25,8 +25,10 @@ parser = many (try embed <|> raw)
 embed :: Parser Content
 embed = Expr <$> (string "#{" *> expr <* string "}")
     where
-      expr :: Parser String
-      expr = many1 (noneOf "}")
+      expr :: Parser [String]
+      expr = many1 term
+      term = spaces *> many1 (noneOf " \t}")
 
 raw :: Parser Content
 raw = Raw <$> many1 (noneOf "#")
+
