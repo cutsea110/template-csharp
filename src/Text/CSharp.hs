@@ -17,6 +17,9 @@ csharpFromString = litE . stringL
 
 data Content = Raw String
              | Expr [E]
+             | CForall String [E]
+             | CMaybe String [E]
+             | CNothing
                deriving Show
 
 data E = S String
@@ -24,14 +27,25 @@ data E = S String
        | V String
        deriving Show
 
+eol :: Parser String
+eol =     try (string "\n\r")
+      <|> try (string "\r\n")
+      <|> string "\n"
+      <|> string "\r"
+      <?> fail "end of line"
+
 parser :: Parser [Content]
-parser = many (try embed <|> raw)
+parser = many (try embed <|>
+               try cforall <|>
+               try cmaybe <|>
+               raw)
 
 embed :: Parser Content
 embed = Expr <$> (string "#{" *> expr <* string "}")
+
+expr :: Parser [E]
+expr = many1 term
     where
-      expr :: Parser [E]
-      expr = many1 term
       term :: Parser E
       term = spaces *> (S <$> str <|> I <$> integer <|> V <$> var)
 
@@ -40,11 +54,35 @@ integer = read <$> many1 digit
 
 str :: Parser String
 str = char '"' *> many quotedChar <* char '"'
-quotedChar :: Parser Char
-quotedChar = noneOf "\\\"" <|> try (string "\\\"" >> return '"')
+    where
+      quotedChar :: Parser Char
+      quotedChar = noneOf "\\\"" <|> try (string "\\\"" >> return '"')
 
 var :: Parser String
 var = many1 (noneOf " \t}")
 
 raw :: Parser Content
 raw = Raw <$> many1 (noneOf "#")
+
+cforall :: Parser Content
+cforall = CForall <$> bindVal <*> expr
+    where
+      bindVal = string "#forall" *> spaces *>
+                binding
+                <* spaces <* string "<-" <* spaces
+
+cmaybe :: Parser Content
+cmaybe = CMaybe <$> bindVal <*> expr
+    where
+      bindVal = string "#maybe" *> spaces *>
+                binding
+                <* spaces <* string "<-" <* spaces
+
+cnothing :: Parser Content
+cnothing = string "#nothing" *> many (noneOf "\r\n") *> eol >> return CNothing
+
+-- TODO: support pattern match
+binding :: Parser String
+binding = many1 (letter <|> digit <|> char '_')
+
+-- | >>> parse parser "" "hello world#{foo var 12 \"ok\"} cutsea #{var}"
