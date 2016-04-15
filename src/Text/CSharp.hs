@@ -40,16 +40,44 @@ eol =     try (string "\n\r")
 spaceTabs :: Parser String
 spaceTabs = many (oneOf " \t")
 
+doc :: Parser [(Indent, [Content])]
 doc = line `endBy` eol
 
+line :: Parser (Indent, [Content])
 line = (,) <$> indent <*> contents
 
-contents = Raw <$> many (noneOf "\n\r")
-
-indent :: Parser Int
+indent :: Parser Indent
 indent = fmap sum $
          many ((char ' ' >> pure 1) <|>
                (char '\t' >> fail "Tabs are not allowed in indentation"))
+
+contents :: Parser [Content]
+contents = many (try quoted <|>
+                 raw)
+
+quoted :: Parser Content
+quoted = Expr <$> (string "#{" *> expr <* string "}")
+
+expr :: Parser [E]
+expr = spaceTabs *> many1 term
+    where
+      term :: Parser E
+      term = (S <$> str <|> I <$> integer <|> V <$> var) <* spaceTabs
+
+integer :: Parser Integer
+integer = read <$> many1 digit
+
+str :: Parser String
+str = char '"' *> many quotedChar <* char '"'
+    where
+      quotedChar :: Parser Char
+      quotedChar = noneOf "\\\"" <|> try (string "\\\"" >> return '"')
+
+var :: Parser String
+var = many1 (noneOf " \t\n\r{}#")
+
+raw :: Parser Content
+raw = Raw <$> many1 (noneOf "#\n\r")
 
 {--
 parser :: Parser [Content]
