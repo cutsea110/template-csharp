@@ -1,8 +1,12 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE QuasiQuotes #-}
 module Test where
 
+import Language.Haskell.TH
 import Text.CSharp
 
+servantClientCode :: String
 servantClientCode = [csharp|
 using Newtonsoft.Json;
 using System.Collection.Generic;
@@ -14,8 +18,8 @@ using System.Text;
 using System.Threading.Tasks;
 
 #region type aliases
-%:foreach (name, type) <- types
-  using %{name} = %{type}
+$foreach (name, type) <- types
+  using #{name} = #{type}
 #endregion
 
 namespace ServantClientBook
@@ -82,3 +86,16 @@ namespace ServantClientBook
     }
 }
        |]
+
+main = do
+  let types = [ ("AddressId", "System.Int64")
+              , ("AuthorId", "System.Int64")
+              , ("PublisherId", "System.Int64")
+              , ("BookId", "System.Int64")
+              , ("ISBN", "System.String")
+              , ("Postcode", "System.String")
+              , ("Tel", "System.String")
+              , ("Fax", "System.String")
+              , ("Emailaddress", "System.String")
+              ]
+  putStr servantClientCode
