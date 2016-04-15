@@ -19,6 +19,11 @@ data Content = Raw String
              | Expr [String]
                deriving Show
 
+data E = S String
+       | I Integer
+       | V String
+       deriving Show
+
 parser :: Parser [Content]
 parser = many (try embed <|> raw)
 
@@ -28,6 +33,14 @@ embed = Expr <$> (string "#{" *> expr <* string "}")
       expr :: Parser [String]
       expr = many1 term
       term = spaces *> many1 (noneOf " \t}")
+
+integer :: Parser Integer
+integer = read <$> many1 digit
+
+str :: Parser String
+str = char '"' *> many quotedChar <* char '"'
+quotedChar :: Parser Char
+quotedChar = noneOf "\\\"" <|> try (string "\\\"" >> return '"')
 
 raw :: Parser Content
 raw = Raw <$> many1 (noneOf "#")
