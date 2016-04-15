@@ -17,18 +17,18 @@ csharpFromString = litE . stringL
 type Indent = Int
 
 data Content = Raw String
-             | Expr [E]
-             | CForall String [E]
-             | CMaybe String [E]
-             | CNothing
-             | CIf [E]
-             | CElse
+             | Quoted [Expr]
+             | CtrlForall String [Expr]
+             | CtrlMaybe String [Expr]
+             | CtrlNothing
+             | CtrlIf [Expr]
+             | CtrlElse
                deriving Show
 
-data E = S String
-       | I Integer
-       | V String
-       deriving Show
+data Expr = S String
+          | I Integer
+          | V String
+            deriving Show
 
 eol :: Parser String
 eol =     try (string "\n\r")
@@ -53,15 +53,39 @@ indent = fmap sum $
 
 contents :: Parser [Content]
 contents = many (try quoted <|>
+                 try ctrlForall <|>
+                 try ctrlMaybe <|>
+                 try ctrlNothing <|>
                  raw)
 
 quoted :: Parser Content
-quoted = Expr <$> (string "#{" *> expr <* string "}")
+quoted = Quoted <$> (string "#{" *> expr <* string "}")
 
-expr :: Parser [E]
+ctrlForall :: Parser Content
+ctrlForall = CtrlForall <$> bindVal <*> expr
+    where
+      bindVal = string "#forall" *> spaceTabs *>
+                binding
+                <* spaceTabs <* string "<-" <* spaceTabs
+
+ctrlMaybe :: Parser Content
+ctrlMaybe = CtrlMaybe <$> bindVal<*> expr
+    where
+      bindVal = string "#maybe" *> spaceTabs *>
+                binding
+                <* spaceTabs <* string "<-" <* spaceTabs
+
+ctrlNothing :: Parser Content
+ctrlNothing = string "#nothing" *> spaceTabs >> pure CtrlNothing
+
+-- TODO: support pattern match
+binding :: Parser String
+binding = many1 (letter <|> digit <|> char '_')
+
+expr :: Parser [Expr]
 expr = spaceTabs *> many1 term
     where
-      term :: Parser E
+      term :: Parser Expr
       term = (S <$> str <|> I <$> integer <|> V <$> var) <* spaceTabs
 
 integer :: Parser Integer
