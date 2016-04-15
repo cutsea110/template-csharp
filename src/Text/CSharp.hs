@@ -39,6 +39,21 @@ eol =     try (string "\n\r")
 spaceTabs :: Parser String
 spaceTabs = many (oneOf " \t")
 
+doc = line `endBy` eol
+
+line = (,) <$> indent <*> line'
+
+line' = many (noneOf "\n\r")
+
+indent :: Parser Int
+indent = fmap sum $
+         many ((char ' ' >> pure 1) <|>
+               (char '\t' >> fail "Tabs are not allowed in indentation"))
+  
+
+
+
+{--
 parser :: Parser [Content]
 parser = many (try embed <|>
                try cforall <|>
@@ -100,3 +115,4 @@ binding :: Parser String
 binding = many1 (letter <|> digit <|> char '_')
 
 -- | >>> parse parser "" "hello world#{foo var 12 \"ok\"} cutsea #{var} #forall x <- f 1 2 3  \t \nHello #if b 1 2 \n Hi,,  #else \n foo #maybe x <- mx 1 2 \n Bye#nothing  \n"
+--}
