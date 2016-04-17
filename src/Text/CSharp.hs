@@ -23,6 +23,9 @@ data Content = Raw String
              | CtrlNothing
              | CtrlIf [Expr]
              | CtrlElse
+             | CtrlCase [Expr]
+             | CtrlOf [Expr]
+             | CtrlLet String [Expr]
                deriving Show
 
 data Expr = S String
@@ -56,27 +59,51 @@ contents = many (try quoted <|>
                  try ctrlForall <|>
                  try ctrlMaybe <|>
                  try ctrlNothing <|>
+                 try ctrlIf <|>
+                 try ctrlElse <|>
+                 try ctrlCase <|>
+                 try ctrlOf <|>
+                 try ctrlLet <|>
                  raw)
 
 quoted :: Parser Content
-quoted = Quoted <$> (string "#{" *> expr <* string "}")
+quoted = Quoted <$> (string "${" *> expr <* string "}")
 
 ctrlForall :: Parser Content
 ctrlForall = CtrlForall <$> bindVal <*> expr
     where
-      bindVal = string "#forall" *> spaceTabs *>
+      bindVal = string "$forall" *> spaceTabs *>
                 binding
                 <* spaceTabs <* string "<-" <* spaceTabs
 
 ctrlMaybe :: Parser Content
 ctrlMaybe = CtrlMaybe <$> bindVal<*> expr
     where
-      bindVal = string "#maybe" *> spaceTabs *>
+      bindVal = string "$maybe" *> spaceTabs *>
                 binding
                 <* spaceTabs <* string "<-" <* spaceTabs
 
 ctrlNothing :: Parser Content
-ctrlNothing = string "#nothing" *> spaceTabs >> pure CtrlNothing
+ctrlNothing = string "$nothing" *> spaceTabs >> pure CtrlNothing
+
+ctrlIf :: Parser Content
+ctrlIf = CtrlIf <$> (string "$if" *> spaceTabs *> expr <* spaceTabs)
+
+ctrlElse :: Parser Content
+ctrlElse = string "$else" *> spaceTabs >> pure CtrlElse
+
+ctrlCase :: Parser Content
+ctrlCase = CtrlCase <$> (string "$case" *> spaceTabs *> expr <* spaceTabs)
+
+ctrlOf :: Parser Content
+ctrlOf = CtrlOf <$> (string "$of" *> spaceTabs *> expr <* spaceTabs)
+
+ctrlLet :: Parser Content
+ctrlLet = CtrlLet <$> bindVal <*> expr
+    where
+      bindVal = string "$let" *> spaceTabs *>
+                binding
+                <* spaceTabs <* string "=" <* spaceTabs
 
 -- TODO: support pattern match
 binding :: Parser String
@@ -98,71 +125,8 @@ str = char '"' *> many quotedChar <* char '"'
       quotedChar = noneOf "\\\"" <|> try (string "\\\"" >> return '"')
 
 var :: Parser String
-var = many1 (noneOf " \t\n\r{}#")
+var = many1 (noneOf " \t\n\r{}$")
 
 raw :: Parser Content
-raw = Raw <$> many1 (noneOf "#\n\r")
+raw = Raw <$> many1 (noneOf "$\n\r")
 
-{--
-parser :: Parser [Content]
-parser = many (try embed <|>
-               try cforall <|>
-               try cmaybe <|>
-               try cnothing <|>
-               try cif <|>
-               try celse <|>
-               raw)
-
-embed :: Parser Content
-embed = Expr <$> (string "#{" *> expr <* string "}")
-
-expr :: Parser [E]
-expr = many1 term
-    where
-      term :: Parser E
-      term = spaceTabs *> (S <$> str <|> I <$> integer <|> V <$> var) <* spaceTabs
-
-integer :: Parser Integer
-integer = read <$> many1 digit
-
-str :: Parser String
-str = char '"' *> many quotedChar <* char '"'
-    where
-      quotedChar :: Parser Char
-      quotedChar = noneOf "\\\"" <|> try (string "\\\"" >> return '"')
-
-var :: Parser String
-var = many1 (noneOf " \t\n\r{}#")
-
-raw :: Parser Content
-raw = Raw <$> many1 (noneOf "#\n\r")
-
-cforall :: Parser Content
-cforall = CForall <$> bindVal <*> expr <* eol
-    where
-      bindVal = string "#forall" *> spaceTabs *>
-                binding
-                <* spaceTabs <* string "<-" <* spaceTabs
-
-cmaybe :: Parser Content
-cmaybe = CMaybe <$> bindVal <*> expr <* eol
-    where
-      bindVal = string "#maybe" *> spaceTabs *>
-                binding
-                <* spaceTabs <* string "<-" <* spaceTabs
-
-cnothing :: Parser Content
-cnothing = string "#nothing" *> spaceTabs *> eol *> pure CNothing
-
-cif :: Parser Content
-cif = CIf <$> (string "#if" *> spaceTabs *> expr <* spaceTabs <* eol)
-
-celse :: Parser Content
-celse = string "#else" *> spaceTabs *> eol *> pure CElse
-
--- TODO: support pattern match
-binding :: Parser String
-binding = many1 (letter <|> digit <|> char '_')
-
--- | >>> parse parser "" "hello world#{foo var 12 \"ok\"} cutsea #{var} #forall x <- f 1 2 3  \t \nHello #if b 1 2 \n Hi,,  #else \n foo #maybe x <- mx 1 2 \n Bye#nothing  \n"
---}
