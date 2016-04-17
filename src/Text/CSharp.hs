@@ -3,7 +3,7 @@
 module Text.CSharp where
 
 import Control.Applicative ((<$>), (<*>))
-import Text.ParserCombinators.Parsec
+import Text.ParserCombinators.Parsec hiding (Line)
 import Language.Haskell.TH
 import Language.Haskell.TH.Quote
 
@@ -16,9 +16,11 @@ csharpFromString = litE . stringL
 
 type Indent = Int
 
-data Content = Raw String
-             | Quoted [Expr]
-             | CtrlForall String [Expr]
+data InLine = Raw String
+         | Quoted [Expr]
+           deriving Show
+
+data Line = CtrlForall String [Expr]
              | CtrlMaybe String [Expr]
              | CtrlNothing
              | CtrlIf [Expr]
@@ -26,6 +28,7 @@ data Content = Raw String
              | CtrlCase [Expr]
              | CtrlOf [Expr]
              | CtrlLet String [Expr]
+             | Normal [InLine]
                deriving Show
 
 data Expr = S String
@@ -43,10 +46,10 @@ eol =     try (string "\n\r")
 spaceTabs :: Parser String
 spaceTabs = many (oneOf " \t")
 
-doc :: Parser [(Indent, [Content])]
+doc :: Parser [(Indent, [Line])]
 doc = line `endBy` eol
 
-line :: Parser (Indent, [Content])
+line :: Parser (Indent, [Line])
 line = (,) <$> indent <*> contents
 
 indent :: Parser Indent
@@ -54,9 +57,8 @@ indent = fmap sum $
          many ((char ' ' >> pure 1) <|>
                (char '\t' >> fail "Tabs are not allowed in indentation"))
 
-contents :: Parser [Content]
-contents = many (try quoted <|>
-                 try ctrlForall <|>
+contents :: Parser [Line]
+contents = many (try ctrlForall <|>
                  try ctrlMaybe <|>
                  try ctrlNothing <|>
                  try ctrlIf <|>
@@ -64,41 +66,38 @@ contents = many (try quoted <|>
                  try ctrlCase <|>
                  try ctrlOf <|>
                  try ctrlLet <|>
-                 raw)
+                 normal)
 
-quoted :: Parser Content
-quoted = Quoted <$> (string "${" *> expr <* string "}")
-
-ctrlForall :: Parser Content
+ctrlForall :: Parser Line
 ctrlForall = CtrlForall <$> bindVal <*> expr
     where
       bindVal = string "$forall" *> spaceTabs *>
                 binding
                 <* spaceTabs <* string "<-" <* spaceTabs
 
-ctrlMaybe :: Parser Content
+ctrlMaybe :: Parser Line
 ctrlMaybe = CtrlMaybe <$> bindVal<*> expr
     where
       bindVal = string "$maybe" *> spaceTabs *>
                 binding
                 <* spaceTabs <* string "<-" <* spaceTabs
 
-ctrlNothing :: Parser Content
+ctrlNothing :: Parser Line
 ctrlNothing = string "$nothing" *> spaceTabs >> pure CtrlNothing
 
-ctrlIf :: Parser Content
+ctrlIf :: Parser Line
 ctrlIf = CtrlIf <$> (string "$if" *> spaceTabs *> expr <* spaceTabs)
 
-ctrlElse :: Parser Content
+ctrlElse :: Parser Line
 ctrlElse = string "$else" *> spaceTabs >> pure CtrlElse
 
-ctrlCase :: Parser Content
+ctrlCase :: Parser Line
 ctrlCase = CtrlCase <$> (string "$case" *> spaceTabs *> expr <* spaceTabs)
 
-ctrlOf :: Parser Content
+ctrlOf :: Parser Line
 ctrlOf = CtrlOf <$> (string "$of" *> spaceTabs *> expr <* spaceTabs)
 
-ctrlLet :: Parser Content
+ctrlLet :: Parser Line
 ctrlLet = CtrlLet <$> bindVal <*> expr
     where
       bindVal = string "$let" *> spaceTabs *>
@@ -125,8 +124,17 @@ str = char '"' *> many quotedChar <* char '"'
       quotedChar = noneOf "\\\"" <|> try (string "\\\"" >> return '"')
 
 var :: Parser String
-var = many1 (noneOf " \t\n\r{}$")
+var = many1 (noneOf " \t\n\r{}\'\"$")
 
-raw :: Parser Content
+normal :: Parser Line
+normal = Normal <$> many1 (try quoted <|> try raw' <|> try raw)
+
+quoted :: Parser InLine
+quoted = Quoted <$> (string "${" *> expr <* string "}")
+
+raw' :: Parser InLine
+raw' = Raw <$> ((:) <$> (char '$')
+                <*> ((:) <$> noneOf "{" <*> many (noneOf "$\n\r")))
+
+raw :: Parser InLine
 raw = Raw <$> many1 (noneOf "$\n\r")
-
